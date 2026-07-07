@@ -116,3 +116,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+import mongoengine
+
+mongoengine.connect('django_api_db', host='127.0.0.1', port=27017)

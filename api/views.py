@@ -1,14 +1,7 @@
 from django.http import JsonResponse
 import json
 from django.views.decorators.csrf import csrf_exempt
-
-
-productos = [
-    {"id": 1, "nombre": "Laptop", "precio": 12500, "stock": 5},
-    {"id": 2, "nombre": "Mouse", "precio": 250, "stock": 20},
-    {"id": 3, "nombre": "Teclado", "precio": 600, "stock": 10},
-]
-
+from .models import Producto # Importamos tu nuevo modelo
 
 def inicio(request):
     return JsonResponse({
@@ -21,19 +14,24 @@ def inicio(request):
 
 
 def listar_productos(request):
-    return JsonResponse({
-        "productos": productos
-    })
-
+    productos_db = Producto.objects.all()
+    datos = [
+        {"id": str(p.id), "nombre": p.nombre, "precio": p.precio, "stock": p.stock} 
+        for p in productos_db
+    ]
+    return JsonResponse({"productos": datos})
 
 def detalle_producto(request, id):
-    for producto in productos:
-        if producto["id"] == id:
-            return JsonResponse(producto)
-
-    return JsonResponse({
-        "error": "Producto no encontrado"
-    }, status=404)
+    try:
+        producto = Producto.objects.get(id=id)
+        return JsonResponse({
+            "id": str(producto.id),
+            "nombre": producto.nombre,
+            "precio": producto.precio,
+            "stock": producto.stock
+        })
+    except Producto.DoesNotExist:
+        return JsonResponse({"error": "Producto no encontrado"}, status=404)
 
 clientes = [
     {"id": 1, "nombre": "Juan Pérez", "correo": "juan@gmail.com"},
@@ -57,57 +55,40 @@ def listar_ventas(request):
 def crear_producto(request):
     if request.method == "POST":
         datos = json.loads(request.body)
-
-        nuevo_producto = {
-            "id": len(productos) + 1,
-            "nombre": datos["nombre"],
-            "precio": datos["precio"],
-            "stock": datos["stock"]
-        }
-
-        productos.append(nuevo_producto)
-
+        nuevo_producto = Producto(
+            nombre=datos["nombre"],
+            precio=datos["precio"],
+            stock=datos["stock"]
+        )
+        nuevo_producto.save() # Guarda en MongoDB
         return JsonResponse({
-            "mensaje": "Producto creado correctamente",
-            "producto": nuevo_producto
+            "mensaje": "Producto guardado en base de datos",
+            "producto": {"id": str(nuevo_producto.id), "nombre": nuevo_producto.nombre, "precio": nuevo_producto.precio, "stock": nuevo_producto.stock}
         }, status=201)
-
-    return JsonResponse({
-        "error": "Método no permitido"
-    }, status=405)
+    return JsonResponse({"error": "Método no permitido"}, status=405)
 
 @csrf_exempt
 def actualizar_producto(request, id):
     if request.method == "PUT":
         datos = json.loads(request.body)
-
-        for producto in productos:
-            if producto["id"] == id:
-                producto["nombre"] = datos.get("nombre", producto["nombre"])
-                producto["precio"] = datos.get("precio", producto["precio"])
-                producto["stock"] = datos.get("stock", producto["stock"])
-
-                return JsonResponse({
-                    "mensaje": "Producto actualizado correctamente",
-                    "producto": producto
-                })
-
-        return JsonResponse({"error": "Producto no encontrado"}, status=404)
-
+        try:
+            producto = Producto.objects.get(id=id)
+            producto.nombre = datos.get("nombre", producto.nombre)
+            producto.precio = datos.get("precio", producto.precio)
+            producto.stock = datos.get("stock", producto.stock)
+            producto.save()
+            return JsonResponse({"mensaje": "Producto actualizado", "producto": {"id": str(producto.id), "nombre": producto.nombre}})
+        except Producto.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
     return JsonResponse({"error": "Método no permitido"}, status=405)
 
 @csrf_exempt
 def eliminar_producto(request, id):
     if request.method == "DELETE":
-        for producto in productos:
-            if producto["id"] == id:
-                productos.remove(producto)
-
-                return JsonResponse({
-                    "mensaje": "Producto eliminado correctamente",
-                    "producto": producto
-                })
-
-        return JsonResponse({"error": "Producto no encontrado"}, status=404)
-
+        try:
+            producto = Producto.objects.get(id=id)
+            producto.delete() # Elimina de MongoDB
+            return JsonResponse({"mensaje": "Producto eliminado de la base de datos"})
+        except Producto.DoesNotExist:
+            return JsonResponse({"error": "Producto no encontrado"}, status=404)
     return JsonResponse({"error": "Método no permitido"}, status=405)
